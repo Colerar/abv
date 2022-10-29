@@ -1,0 +1,17 @@
+[package]
+name = "abv-cli"
+version = "0.1.0"
+edition = "2021"
+authors = ["Colerar <233hbj@gmail.com>"]
+description = "AV and BV convert functions for Bilibili videos."
+homepage = "https://github.com/Colerar/abv"
+repository = "https://github.com/Colerar/abv"
+readme = "README.md"
+keywords = ["bilibili"]
+categories = ["algorithms"]
+license = "MIT OR CC0-1.0"
+publish = false
+
+[dependencies]
+abv = { version = "*", path = ".." }
+clap = { version = "4.0", features = ["derive", "cargo"] }
