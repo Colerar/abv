@@ -12,6 +12,11 @@ categories = ["algorithms"]
 license = "MIT OR CC0-1.0"
 publish = false
 
+[profile.release]
+opt-level = 3
+strip = "symbols"
+lto = true
+
 [dependencies]
 abv = { version = "*", path = ".." }
 clap = { version = "4.0", features = ["derive", "cargo"] }
