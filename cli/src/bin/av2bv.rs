@@ -4,7 +4,7 @@ use clap::Parser;
 #[derive(Parser, Debug, Clone)]
 #[clap(version, name = "bv2av")]
 struct Cli {
-  #[arg(value_name = "AVID", num_args = 1..)]
+  #[arg(value_name = "AVID", num_args = 1.., required = true)]
   avids: Vec<String>,
   /// Do not show `av` prefix
   #[arg(short = 'P', long = "no-prefix", default_value_t = false)]
@@ -38,11 +38,7 @@ fn main() {
     };
     match av2bv(av) {
       Ok(bv) => {
-        let prefix = if !args.no_prefix {
-          "av"
-        } else {
-          ""
-        };
+        let prefix = if !args.no_prefix { "av" } else { "" };
         let suffix = if !args.no_suffix {
           format!(" = {}{}", prefix, av)
         } else {
