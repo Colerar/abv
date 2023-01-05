@@ -33,7 +33,7 @@ fn main() {
       eprint!("{}", args.separator);
       continue;
     }
-    match bv2av(&*bv) {
+    match bv2av(bv.as_str()) {
       Ok(av) => {
         let prefix = if !args.no_prefix { "av" } else { "" };
         let suffix = if !args.no_suffix {
