@@ -1,3 +1,5 @@
+use std::{borrow::Cow, ptr};
+
 use phf::phf_map;
 
 use thiserror::Error;
@@ -9,26 +11,27 @@ pub const MAX_AID: u64 = 1 << 51;
 pub const MIN_AID: u64 = 1;
 
 const BASE: u64 = 58;
+const BV_LEN: usize = 12;
 const PREFIX: &str = "BV1";
 
-const ALPHABET: [char; BASE as usize] = [
-  'F', 'c', 'w', 'A', 'P', 'N', 'K', 'T', 'M', 'u', 'g', '3', 'G', 'V', '5', 'L', 'j', '7', 'E',
-  'J', 'n', 'H', 'p', 'W', 's', 'x', '4', 't', 'b', '8', 'h', 'a', 'Y', 'e', 'v', 'i', 'q', 'B',
-  'z', '6', 'r', 'k', 'C', 'y', '1', '2', 'm', 'U', 'S', 'D', 'Q', 'X', '9', 'R', 'd', 'o', 'Z',
-  'f',
+const ALPHABET: [u8; BASE as usize] = [
+  b'F', b'c', b'w', b'A', b'P', b'N', b'K', b'T', b'M', b'u', b'g', b'3', b'G', b'V', b'5', b'L',
+  b'j', b'7', b'E', b'J', b'n', b'H', b'p', b'W', b's', b'x', b'4', b't', b'b', b'8', b'h', b'a',
+  b'Y', b'e', b'v', b'i', b'q', b'B', b'z', b'6', b'r', b'k', b'C', b'y', b'1', b'2', b'm', b'U',
+  b'S', b'D', b'Q', b'X', b'9', b'R', b'd', b'o', b'Z', b'f',
 ];
 
-const REVERSE: phf::Map<char, usize> = phf_map! {
-  'F' => 0, 'c' => 1, 'w' => 2, 'A' => 3, 'P' => 4, 'N' => 5, 'K' => 6, 'T' => 7, 'M' => 8, 'u' => 9,
-  'g' => 10, '3' => 11, 'G' => 12, 'V' => 13, '5' => 14, 'L' => 15, 'j' => 16, '7' => 17, 'E' => 18,
-  'J' => 19, 'n' => 20, 'H' => 21, 'p' => 22, 'W' => 23, 's' => 24, 'x' => 25, '4' => 26, 't' => 27,
-  'b' => 28, '8' => 29, 'h' => 30, 'a' => 31, 'Y' => 32, 'e' => 33, 'v' => 34, 'i' => 35, 'q' => 36,
-  'B' => 37, 'z' => 38, '6' => 39, 'r' => 40, 'k' => 41, 'C' => 42, 'y' => 43, '1' => 44, '2' => 45,
-  'm' => 46, 'U' => 47, 'S' => 48, 'D' => 49, 'Q' => 50, 'X' => 51, '9' => 52, 'R' => 53, 'd' => 54,
-  'o' => 55, 'Z' => 56, 'f' => 57,
+const REVERSE: phf::Map<u8, usize> = phf_map! {
+  b'F' => 0,  b'c' => 1,  b'w' => 2,  b'A' => 3,  b'P' => 4,  b'N' => 5,  b'K' => 6,  b'T' => 7,  b'M' => 8,
+  b'u' => 9,  b'g' => 10, b'3' => 11, b'G' => 12, b'V' => 13, b'5' => 14, b'L' => 15, b'j' => 16, b'7' => 17,
+  b'E' => 18, b'J' => 19, b'n' => 20, b'H' => 21, b'p' => 22, b'W' => 23, b's' => 24, b'x' => 25, b'4' => 26,
+  b't' => 27, b'b' => 28, b'8' => 29, b'h' => 30, b'a' => 31, b'Y' => 32, b'e' => 33, b'v' => 34, b'i' => 35,
+  b'q' => 36, b'B' => 37, b'z' => 38, b'6' => 39, b'r' => 40, b'k' => 41, b'C' => 42, b'y' => 43, b'1' => 44,
+  b'2' => 45, b'm' => 46, b'U' => 47, b'S' => 48, b'D' => 49, b'Q' => 50, b'X' => 51, b'9' => 52, b'R' => 53,
+  b'd' => 54, b'o' => 55, b'Z' => 56, b'f' => 57,
 };
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum Error {
   #[error("Av {0} is smaller than {MIN_AID}")]
   AvTooSmall(u64),
@@ -36,95 +39,101 @@ pub enum Error {
   AvTooBig(u64),
   #[error("Bv is empty")]
   BvEmpty,
-  #[error("Bv is too small: {0}")]
-  BvTooSmall(String),
-  #[error("Bv is too big: {0}")]
-  BvTooBig(String),
-  #[error("Bv `{0}` is illegal, with invalid char code `{1}`")]
-  BvInvalidChar(String, u8),
+  #[error("Bv is too small")]
+  BvTooSmall,
+  #[error("Bv is too big")]
+  BvTooBig,
+  #[error("Bv prefix should be ignore-cased `BV1`")]
+  BvInvalidPrefix,
+  #[error("Bv is invalid, with invalid char code `{0}`")]
+  BvInvalidChar(char),
   #[error("Bv with unicode char")]
   BvWithUnicode,
 }
 
 pub fn av2bv(avid: u64) -> Result<String, Error> {
   if avid < MIN_AID {
-    Err(Error::AvTooSmall(avid))?
+    return Err(Error::AvTooSmall(avid));
   }
   if avid >= MAX_AID {
-    Err(Error::AvTooBig(avid))?
+    return Err(Error::AvTooBig(avid));
   }
 
-  let mut bv = String::new();
+  let mut bytes: [u8; BV_LEN] = [
+    b'B', b'V', b'1', b'0', b'0', b'0', b'0', b'0', b'0', b'0', b'0', b'0',
+  ];
+
+  let mut bv_idx = BV_LEN - 1;
   let mut tmp = (MAX_AID | avid) ^ XOR_CODE;
   while tmp != 0 {
+    let table_idx = tmp % BASE;
     // SAFETY: a positive number mod 58 is in 0..58
-    let part = unsafe {
-      let idx = tmp % BASE;
-      ALPHABET.get_unchecked(idx as usize)
-    };
-    bv = format!("{}{}", part, bv);
+    let part = unsafe { ALPHABET.get_unchecked(table_idx as usize) };
+    unsafe {
+      let ele = bytes.get_unchecked_mut(bv_idx);
+      *ele = *part;
+    }
     tmp = tmp / BASE;
+    bv_idx -= 1;
   }
 
-  // SAFETY: bv is a ASCII string
-  let bv_vec = unsafe { bv.as_mut_vec() };
+  // SAFETY, 3 < 4 < 7 < 9 < BV_LEN
+  unsafe {
+    unchecked_swap(&mut bytes, 3, 9);
+    unchecked_swap(&mut bytes, 4, 7);
+  }
 
-  let tmp = bv_vec[0];
-  bv_vec[0] = bv_vec[6];
-  bv_vec[6] = tmp;
-  let tmp = bv_vec[1];
-  bv_vec[1] = bv_vec[4];
-  bv_vec[4] = tmp;
+  // SAFETY: bytes represent an ASCII string
+  let str = unsafe { String::from_utf8_unchecked(bytes.to_vec()) };
 
-  Ok(format!("{}{}", PREFIX, bv))
+  Ok(str)
 }
 
-pub fn bv2av(bvid: &str) -> Result<u64, Error> {
+pub fn bv2av<'a, S>(bvid: S) -> Result<u64, Error>
+where
+  S: Into<Cow<'a, str>>,
+{
+  let bvid: Cow<_> = bvid.into();
   if bvid.is_empty() {
-    Err(Error::BvEmpty)?
-  }
-  let r_bvid = bvid;
-  let mut bvid = bvid;
-
-  if bvid.len() != bvid.chars().count() {
-    Err(Error::BvWithUnicode)?
+    return Err(Error::BvEmpty);
   }
 
-  if bvid.len() == 10 && bvid.starts_with("1") {
-    bvid = &bvid[1..];
-  } else if bvid.len() > 3 && bvid.starts_with(&bvid[0..3].to_ascii_uppercase()) {
-    bvid = &bvid[3..];
+  if !bvid.is_ascii() {
+    return Err(Error::BvWithUnicode);
   }
 
-  if bvid.len() < 9 {
-    Err(Error::BvTooSmall(r_bvid.to_string()))?
+  match bvid.as_bytes().len().cmp(&BV_LEN) {
+    std::cmp::Ordering::Less => return Err(Error::BvTooSmall),
+    std::cmp::Ordering::Greater => return Err(Error::BvTooBig),
+    _ => {},
   }
 
-  let mut bvid = bvid.to_string();
+  // SAFETY: Already checked before
+  let prefix = unsafe { bvid.get_unchecked(0..3) };
+  if !prefix.eq_ignore_ascii_case(PREFIX) {
+    return Err(Error::BvInvalidPrefix);
+  }
 
-  {
-    let bv_vec = unsafe { bvid.as_mut_vec() };
+  let mut bvid = match bvid {
+    Cow::Borrowed(str) => str.to_string(),
+    Cow::Owned(string) => string,
+  };
 
-    let tmp = bv_vec[1];
-    bv_vec[1] = bv_vec[4];
-    bv_vec[4] = tmp;
-    let tmp = bv_vec[0];
-    bv_vec[0] = bv_vec[6];
-    bv_vec[6] = tmp;
+  unsafe {
+    let bv_vec = bvid.as_mut_vec();
+    unchecked_swap(bv_vec, 3, 9);
+    unchecked_swap(bv_vec, 4, 7);
   }
 
   let mut tmp = 0;
 
-  for byte in bvid.bytes() {
-    let char = byte as char;
-    let index = if let Some(idx) = REVERSE.get(&char) {
-      idx
-    } else {
-      Err(Error::BvInvalidChar(r_bvid.to_string(), byte))?
+  for byte in &bvid.as_bytes()[3..] {
+    let Some(idx) = REVERSE.get(byte) else {
+      return Err(Error::BvInvalidChar(*byte as char));
     };
-    tmp = tmp * BASE + *index as u64;
+    tmp = tmp * BASE + *idx as u64;
   }
-
+ 
   // Equivalence of: format!("{:b}", tmp).size()
   let bin_len = if tmp == 0 {
     0
@@ -133,48 +142,26 @@ pub fn bv2av(bvid: &str) -> Result<u64, Error> {
   };
 
   if bin_len > 52 {
-    Err(Error::BvTooBig(r_bvid.to_string()))?;
+    return Err(Error::BvTooBig);
   }
 
   if bin_len < 52 {
-    Err(Error::BvTooSmall(r_bvid.to_string()))?;
+    return Err(Error::BvTooSmall);
   }
 
   let avid = (tmp & MASK_CODE) ^ XOR_CODE;
 
   if avid < MIN_AID {
-    Err(Error::BvTooSmall(r_bvid.to_string()))?;
+    return Err(Error::BvTooSmall);
   }
 
   Ok(avid)
 }
 
-#[cfg(test)]
-mod tests {
-  use crate::{av2bv, bv2av, Error};
-
-  #[test]
-  fn av2bv_test() {
-    assert_eq!("BV1gA4v1m7BV", av2bv(11451419180).unwrap());
-
-    match av2bv(0).unwrap_err() {
-      Error::AvTooSmall(_) => { /* pass */ },
-      _ => panic!(),
-    }
-
-    match av2bv(99999999999999999).unwrap_err() {
-      Error::AvTooBig(_) => { /* pass */ },
-      _ => panic!(),
-    }
-  }
-
-  #[test]
-  fn bv2av_test() {
-    assert_eq!(1145141919810, bv2av("BV1B8Ziyo7s2").unwrap());
-
-    match bv2av("BV测试").unwrap_err() {
-      Error::BvWithUnicode => { /* pass */ },
-      _ => panic!(),
-    }
+unsafe fn unchecked_swap<I>(array: &mut [I], index_a: usize, index_b: usize) {
+  let pa = ptr::addr_of_mut!(array[index_a]);
+  let pb = ptr::addr_of_mut!(array[index_b]);
+  unsafe {
+    ptr::swap(pa, pb);
   }
 }
