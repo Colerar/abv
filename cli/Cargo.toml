@@ -1,6 +1,6 @@
 [package]
 name = "abv-cli"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Colerar <233hbj@gmail.com>"]
 description = "AV and BV convert functions for Bilibili videos."
@@ -14,7 +14,7 @@ publish = false
 
 [profile.release]
 opt-level = 3
-strip = "symbols"
+strip = true
 lto = true
 
 [dependencies]
