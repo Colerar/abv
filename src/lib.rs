@@ -1,7 +1,5 @@
 use std::{borrow::Cow, ptr};
 
-use phf::phf_map;
-
 use thiserror::Error;
 
 const XOR_CODE: u64 = 23442827791579;
@@ -21,15 +19,20 @@ const ALPHABET: [u8; BASE as usize] = [
   b'S', b'D', b'Q', b'X', b'9', b'R', b'd', b'o', b'Z', b'f',
 ];
 
-const REVERSE: phf::Map<u8, usize> = phf_map! {
-  b'F' => 0,  b'c' => 1,  b'w' => 2,  b'A' => 3,  b'P' => 4,  b'N' => 5,  b'K' => 6,  b'T' => 7,  b'M' => 8,
-  b'u' => 9,  b'g' => 10, b'3' => 11, b'G' => 12, b'V' => 13, b'5' => 14, b'L' => 15, b'j' => 16, b'7' => 17,
-  b'E' => 18, b'J' => 19, b'n' => 20, b'H' => 21, b'p' => 22, b'W' => 23, b's' => 24, b'x' => 25, b'4' => 26,
-  b't' => 27, b'b' => 28, b'8' => 29, b'h' => 30, b'a' => 31, b'Y' => 32, b'e' => 33, b'v' => 34, b'i' => 35,
-  b'q' => 36, b'B' => 37, b'z' => 38, b'6' => 39, b'r' => 40, b'k' => 41, b'C' => 42, b'y' => 43, b'1' => 44,
-  b'2' => 45, b'm' => 46, b'U' => 47, b'S' => 48, b'D' => 49, b'Q' => 50, b'X' => 51, b'9' => 52, b'R' => 53,
-  b'd' => 54, b'o' => 55, b'Z' => 56, b'f' => 57,
-};
+#[rustfmt::skip]
+fn rev(value: u8) -> Option<u8> {
+  use std::option::Option::Some as S;
+  match value {
+    b'F' => S(0),  b'c' => S(1),  b'w' => S(2),  b'A' => S(3),  b'P' => S(4),  b'N' => S(5),  b'K' => S(6),  b'T' => S(7),  b'M' => S(8),
+    b'u' => S(9),  b'g' => S(10), b'3' => S(11), b'G' => S(12), b'V' => S(13), b'5' => S(14), b'L' => S(15), b'j' => S(16), b'7' => S(17),
+    b'E' => S(18), b'J' => S(19), b'n' => S(20), b'H' => S(21), b'p' => S(22), b'W' => S(23), b's' => S(24), b'x' => S(25), b'4' => S(26),
+    b't' => S(27), b'b' => S(28), b'8' => S(29), b'h' => S(30), b'a' => S(31), b'Y' => S(32), b'e' => S(33), b'v' => S(34), b'i' => S(35),
+    b'q' => S(36), b'B' => S(37), b'z' => S(38), b'6' => S(39), b'r' => S(40), b'k' => S(41), b'C' => S(42), b'y' => S(43), b'1' => S(44),
+    b'2' => S(45), b'm' => S(46), b'U' => S(47), b'S' => S(48), b'D' => S(49), b'Q' => S(50), b'X' => S(51), b'9' => S(52), b'R' => S(53),
+    b'd' => S(54), b'o' => S(55), b'Z' => S(56), b'f' => S(57),
+    _ => None
+  }
+}
 
 #[derive(Error, Debug, PartialEq)]
 pub enum Error {
@@ -73,7 +76,7 @@ pub fn av2bv(avid: u64) -> Result<String, Error> {
       let ele = bytes.get_unchecked_mut(bv_idx);
       *ele = *part;
     }
-    tmp = tmp / BASE;
+    tmp /= BASE;
     bv_idx -= 1;
   }
 
@@ -128,12 +131,12 @@ where
   let mut tmp = 0;
 
   for byte in &bvid.as_bytes()[3..] {
-    let Some(idx) = REVERSE.get(byte) else {
+    let Some(idx) = rev(*byte) else {
       return Err(Error::BvInvalidChar(*byte as char));
     };
-    tmp = tmp * BASE + *idx as u64;
+    tmp = tmp * BASE + idx as u64;
   }
- 
+
   // Equivalence of: format!("{:b}", tmp).size()
   let bin_len = if tmp == 0 {
     0
