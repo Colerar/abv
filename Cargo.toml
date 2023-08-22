@@ -1,6 +1,6 @@
 [package]
 name = "abv"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["Colerar <233hbj@gmail.com>"]
 description = "AV and BV convert functions for Bilibili videos."
